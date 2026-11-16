@@ -17,8 +17,9 @@ RUN apt-get update && apt-get install -y \
 # Copy configuration files
 COPY ./docker/apache.conf /etc/apache2/sites-available/000-default.conf
 COPY ./docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY ./docker/init_db.sh /usr/local/bin/init_db.sh
 COPY ./docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /usr/local/bin/init_db.sh /entrypoint.sh
 
 # Copy application source code
 WORKDIR /var/www/html
@@ -31,6 +32,6 @@ COPY database.sql* /var/www/html/
 RUN chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html
 
-EXPOSE 80
+EXPOSE 80 10000
 
 ENTRYPOINT ["/entrypoint.sh"]
