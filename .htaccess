@@ -1,0 +1,33 @@
+RewriteEngine On
+
+# Allow index.html and existing files/directories
+RewriteCond %{REQUEST_FILENAME} -d [OR]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Redirect HTTP to HTTPS in production (exclude localhost and Cloudflare proxies)
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$ [NC]
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+RewriteCond %{HTTP:CF-Visitor} !https [NC]
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# API Endpoints
+RewriteRule ^api/create-order payment/create_order.php [NC,L]
+RewriteRule ^api/qr-pay payment/qr-pay.php [NC,L]
+RewriteRule ^api/order-info payment/order_info.php [NC,L]
+RewriteRule ^api/check-order-status payment/check_order.php [NC,L]
+
+# Payment Status Check Webhooks
+RewriteRule ^order2/payment-status payment2/payment_status.php [NC,L]
+RewriteRule ^order3/payment-status payment3/payment_status.php [NC,L]
+RewriteRule ^order4/payment-status payment4/payment_status.php [NC,L]
+
+# BharatPe UTR Verification
+RewriteRule ^instantpay/bharatpe/payment-verify payment4/verify.php [NC,L]
+
+# Automatic .php Extension Resolution
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^\.]+)$ $1.php [NC,L]

@@ -1,0 +1,64 @@
+<?php
+/**
+ * Master Gateway Configuration
+ * QR Code UPI Payment Gateway (PhonePe, Paytm, BharatPe, HDFC)
+ */
+
+// Error handling - set to 0 in production, E_ALL for debugging
+error_reporting(0);
+ini_set('display_errors', 0);
+date_default_timezone_set('Asia/Kolkata');
+
+// Database Configuration
+// Edit these credentials to match your MySQL database
+if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+if (!defined('DB_USERNAME')) define('DB_USERNAME', getenv('DB_USER') ?: 'root');
+if (!defined('DB_PASSWORD')) define('DB_PASSWORD', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
+if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'upi_gateway');
+
+// Dynamic Server, Protocol & Base Path Detection
+$is_https = (isset($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] === 'on' || $_SERVER['HTTPS'] == 1)) || 
+            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+            (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+$protocol = $is_https ? 'https' : 'http';
+$serverName = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+$server = $serverName;
+
+// Detect subdirectory path if running inside a subfolder (e.g. /gateway)
+$doc_root = isset($_SERVER['DOCUMENT_ROOT']) ? strtolower(str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT']) ?: $_SERVER['DOCUMENT_ROOT'])) : '';
+$app_dir = strtolower(str_replace('\\', '/', realpath(__DIR__) ?: __DIR__));
+$base_path = '';
+if ($doc_root && strpos($app_dir, $doc_root) === 0) {
+    $sub = substr($app_dir, strlen($doc_root));
+    $base_path = '/' . trim($sub, '/');
+    if ($base_path === '/') {
+        $base_path = '';
+    }
+}
+
+$murl = $protocol . '://' . $serverName . $base_path;
+$cxrurl = $serverName;
+$cxrteamurl = $serverName;
+
+// Global mysqli connection instance
+if (!isset($conn) || !$conn) {
+    $conn = @mysqli_connect(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    if ($conn) {
+        mysqli_set_charset($conn, 'utf8mb4');
+    }
+}
+
+// Global PDO connection helper
+function get_pdo_connection() {
+    try {
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USERNAME, DB_PASSWORD, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+        return $pdo;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+?>

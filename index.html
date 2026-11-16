@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UPI Payment Gateway - Dynamic QR & Instant Settlements</title>
+  <link rel="icon" href="/assets/img/bhimupi.png" type="image/png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --secondary: #06b6d4;
+      --dark: #0f172a;
+      --light: #f8fafc;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+    .navbar {
+      background: #ffffff;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      padding: 1rem 0;
+    }
+    .navbar-brand {
+      font-weight: 800;
+      font-size: 1.5rem;
+      color: var(--primary) !important;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+      color: #ffffff;
+      padding: 90px 0 100px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40px;
+      background: #f1f5f9;
+      clip-path: polygon(0 100%, 100% 100%, 100% 0);
+    }
+    .hero h1 {
+      font-size: 3.2rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 24px;
+    }
+    .hero p {
+      font-size: 1.25rem;
+      color: #cbd5e1;
+      margin-bottom: 35px;
+      max-width: 600px;
+    }
+    .btn-custom-primary {
+      background-color: #6366f1;
+      color: #fff;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 10px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+    }
+    .btn-custom-primary:hover {
+      background-color: #4f46e5;
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .btn-custom-secondary {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      font-weight: 600;
+      padding: 14px 32px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-custom-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .hero-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 35px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+    }
+    .feature-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 35px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.3s ease;
+      height: 100%;
+    }
+    .feature-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07);
+      border-color: #cbd5e1;
+    }
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 22px;
+    }
+    .icon-indigo { background: #e0e7ff; color: #4338ca; }
+    .icon-cyan { background: #cffafe; color: #0891b2; }
+    .icon-emerald { background: #d1fae5; color: #059669; }
+    .gateway-badge {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 22px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 40px 0;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="fas fa-qrcode text-primary"></i> UPI GATEWAY
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navContent">
+        <ul class="navbar-nav ms-auto align-items-center gap-2">
+          <li class="nav-item">
+            <a class="nav-link fw-semibold px-3 text-secondary" href="partner/docs.php">
+              <i class="fas fa-book me-1"></i> Developer API
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="btn btn-outline-primary fw-semibold px-4" href="partner/login.php">
+              <i class="fas fa-sign-in-alt me-1"></i> Sign In
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="btn btn-primary fw-semibold px-4 text-white" href="partner/register.php">
+              <i class="fas fa-user-plus me-1"></i> Get Started
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-7">
+          <div class="badge bg-indigo-500 bg-opacity-25 text-white border border-white border-opacity-25 px-3 py-2 rounded-pill mb-3">
+            <i class="fas fa-bolt me-1 text-warning"></i> Multi-UPI Merchant Aggregator
+          </div>
+          <h1>Accept Direct UPI Payments with Zero Middleman Fees</h1>
+          <p>Connect your PhonePe Business, Paytm, BharatPe, or HDFC Vyapar account to generate dynamic QR codes and automate bank settlements in real-time.</p>
+          <div class="d-flex flex-wrap gap-3">
+            <a href="partner/register.php" class="btn-custom-primary">
+              <i class="fas fa-rocket"></i> Register Free Account
+            </a>
+            <a href="partner/login.php" class="btn-custom-secondary">
+              <i class="fas fa-door-open"></i> Merchant Dashboard
+            </a>
+            <a href="partner/docs.php" class="btn-custom-secondary">
+              <i class="fas fa-code"></i> View API Docs
+            </a>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="hero-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <span class="fw-bold fs-5 text-white">Dynamic UPI Demo</span>
+              <span class="badge bg-success">Instant Settlement</span>
+            </div>
+            <div class="text-center p-4 bg-white rounded-4 shadow-sm mb-3">
+              <div class="text-dark fw-bold mb-1">Store Checkout</div>
+              <div class="text-muted small mb-3">Scan with Google Pay, PhonePe, Paytm, BHIM</div>
+              <div class="d-flex justify-content-center mb-3">
+                <img src="/home/upiapp/qrcode.svg" alt="Sample QR" style="width: 170px; height: 170px;" onerror="this.src='/assets/img/rectangle.png'">
+              </div>
+              <div class="h4 text-primary fw-bold mb-0">₹500.00</div>
+            </div>
+            <div class="d-flex justify-content-around text-center text-white-50 small">
+              <div><i class="fas fa-shield-alt text-success mb-1 d-block fs-5"></i> 100% Direct Bank</div>
+              <div><i class="fas fa-clock text-info mb-1 d-block fs-5"></i> 5 Min Auto-Expiry</div>
+              <div><i class="fas fa-check-circle text-warning mb-1 d-block fs-5"></i> Real-time Webhook</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Supported Merchants -->
+  <section class="py-5 bg-white border-bottom">
+    <div class="container text-center">
+      <p class="text-uppercase fw-bold text-muted small letter-spacing-1 mb-4">Seamlessly Integrated with Top Indian Merchant Gateways</p>
+      <div class="d-flex flex-wrap justify-content-center gap-4">
+        <div class="gateway-badge"><i class="fas fa-wallet text-primary fs-5"></i> PhonePe Business</div>
+        <div class="gateway-badge"><i class="fas fa-money-check-alt text-info fs-5"></i> Paytm Merchant</div>
+        <div class="gateway-badge"><i class="fas fa-university text-danger fs-5"></i> BharatPe QR</div>
+        <div class="gateway-badge"><i class="fas fa-building text-primary fs-5"></i> HDFC SmartHub Vyapar</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-5 my-5">
+    <div class="container">
+      <div class="text-center max-w-xl mx-auto mb-5">
+        <h2 class="fw-bold mb-3">Why Choose Our UPI Gateway?</h2>
+        <p class="text-muted">Designed for developers, merchants, and e-commerce platforms who want zero transaction deductions and full control over payments.</p>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="feature-card">
+            <div class="feature-icon icon-indigo">
+              <i class="fas fa-qrcode"></i>
+            </div>
+            <h5 class="fw-bold mb-3">Dynamic QR Codes</h5>
+            <p class="text-muted mb-0">Generates unique dynamic UPI intent strings (`upi://pay?pa=...`) for every single order with custom order IDs and amounts.</p>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="feature-card">
+            <div class="feature-icon icon-cyan">
+              <i class="fas fa-sync-alt"></i>
+            </div>
+            <h5 class="fw-bold mb-3">Real-Time Polling & UTR Check</h5>
+            <p class="text-muted mb-0">Automated statement reconciliation checks bank UTR & transaction IDs every 3 seconds to auto-confirm payments without manual verification.</p>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="feature-card">
+            <div class="feature-icon icon-emerald">
+              <i class="fas fa-code-branch"></i>
+            </div>
+            <h5 class="fw-bold mb-3">Instant Webhooks & REST API</h5>
+            <p class="text-muted mb-0">Full REST API suite for order creation (`/api/create-order`), order status check, and instant server-to-server webhook callbacks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container text-center">
+      <p class="mb-2 fw-semibold text-white">UPI QR Code Payment Gateway Engine</p>
+      <p class="mb-0 small">Direct P2M & P2P Settlement &bull; Zero MDR &bull; Secured with Bank-Grade Encryption</p>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
