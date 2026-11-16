@@ -11,9 +11,13 @@ date_default_timezone_set('Asia/Kolkata');
 
 // Database Configuration
 // Edit these credentials to match your MySQL database
-if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-if (!defined('DB_USERNAME')) define('DB_USERNAME', getenv('DB_USER') ?: 'root');
-if (!defined('DB_PASSWORD')) define('DB_PASSWORD', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
+$default_db_user = (PHP_OS_FAMILY === 'Windows') ? 'root' : 'gateway_user';
+$default_db_pass = (PHP_OS_FAMILY === 'Windows') ? '' : 'gateway_pass123';
+$default_db_host = (PHP_OS_FAMILY === 'Windows') ? 'localhost' : '127.0.0.1';
+
+if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: $default_db_host);
+if (!defined('DB_USERNAME')) define('DB_USERNAME', getenv('DB_USER') ?: $default_db_user);
+if (!defined('DB_PASSWORD')) define('DB_PASSWORD', getenv('DB_PASS') !== false ? getenv('DB_PASS') : $default_db_pass);
 if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'upi_gateway');
 
 // Dynamic Server, Protocol & Base Path Detection
