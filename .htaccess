@@ -14,9 +14,11 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # API Endpoints
 RewriteRule ^api/create-order payment/create_order.php [NC,L]
+RewriteRule ^api/create_order payment/create_order.php [NC,L]
 RewriteRule ^api/qr-pay payment/qr-pay.php [NC,L]
 RewriteRule ^api/order-info payment/order_info.php [NC,L]
 RewriteRule ^api/check-order-status payment/check_order.php [NC,L]
+RewriteRule ^api/check_order_status payment/check_order.php [NC,L]
 
 # Payment Status Check Webhooks
 RewriteRule ^order2/payment-status payment2/payment_status.php [NC,L]
