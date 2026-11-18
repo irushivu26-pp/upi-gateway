@@ -20,6 +20,9 @@ RewriteRule ^api/order-info payment/order_info.php [NC,L]
 RewriteRule ^api/check-order-status payment/check_order.php [NC,L]
 RewriteRule ^api/check_order_status payment/check_order.php [NC,L]
 RewriteRule ^api/webhook pay/webhook.php [NC,L]
+RewriteRule ^api/paytm-callback paytm/callback.php [NC,L]
+RewriteRule ^api/paytm-webhook paytm/callback.php [NC,L]
+RewriteRule ^paytm/callback paytm/callback.php [NC,L]
 
 # Payment Status Check Webhooks
 RewriteRule ^order2/payment-status payment2/payment_status.php [NC,L]

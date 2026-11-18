@@ -48,14 +48,27 @@ if ($conn->connect_error) {
 $conn->set_charset('utf8mb4');
 $conn->query("SET time_zone = '+05:30'");
 
-// Auto-match order by amount if order_id was not explicitly in the notification
-if (empty($order_id) && !empty($amount)) {
+$matched_oid = '';
+if (!empty($order_id)) {
+    $clean_oid = mysqli_real_escape_string($conn, $order_id);
+    $res_id = $conn->query("SELECT order_id FROM orders WHERE order_id = '$clean_oid' OR paytm_txn_ref = '$clean_oid' OR byteTransactionId = '$clean_oid' OR gateway_txn = '$clean_oid' LIMIT 1");
+    if ($res_id && $row = $res_id->fetch_assoc()) {
+        $matched_oid = $row['order_id'];
+    }
+}
+
+// Auto-match order by amount if order_id was not explicitly matched
+if (empty($matched_oid) && !empty($amount)) {
     $amt_clean = mysqli_real_escape_string($conn, $amount);
     $q_match = "SELECT order_id FROM orders WHERE status = 'PENDING' AND amount = '$amt_clean' ORDER BY id DESC LIMIT 1";
     $res_match = $conn->query($q_match);
     if ($res_match && $row = $res_match->fetch_assoc()) {
-        $order_id = $row['order_id'];
+        $matched_oid = $row['order_id'];
     }
+}
+
+if (!empty($matched_oid)) {
+    $order_id = $matched_oid;
 }
 
 if (empty($order_id)) {
