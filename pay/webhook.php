@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../pages/dbInfo.php';
 require_once __DIR__ . '/../pages/dbFunctions.php';
 
 header('Content-Type: application/json');
