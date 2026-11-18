@@ -208,8 +208,12 @@ $db_transactionNote=$rowReports['transactionNote'];  //note
 
 if ($db_status == 'TXN_SUCCESS' && $cxrmerchantTransactionId==$db_merchantTransactionId) {
     echo 'success';
-    $callback = $callback_url . '?order_id=' . htmlspecialchars_decode($order_id) . '&status=SUCCESS&gateway_txn=' . htmlspecialchars_decode($gateway_txn) . '&remark1=' . urlencode($cxrremark1);
-    file_get_contents($callback);
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($order_id, 'SUCCESS', $UTR);
+    } else {
+        $callback = $callback_url . '?order_id=' . htmlspecialchars_decode($order_id) . '&status=SUCCESS&gateway_txn=' . htmlspecialchars_decode($gateway_txn) . '&remark1=' . urlencode($cxrremark1);
+        @file_get_contents($callback);
+    }
 
     $sql = "UPDATE orders SET status='SUCCESS' WHERE order_id=?";
     $stmt = $conn->prepare($sql);

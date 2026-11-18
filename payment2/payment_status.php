@@ -125,7 +125,9 @@ if ($paymentState == 'SUCCESS' && $amo === $bytehackamount) {
     $stmt->close();
 
     $callback_url = $rowUser['callback_url'] ?? '';
-    if (!empty($callback_url)) {
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($order_id, 'SUCCESS', $UTR);
+    } elseif (!empty($callback_url)) {
         $sep = (strpos($callback_url, '?') !== false) ? '&' : '?';
         $cb_url = $callback_url . $sep . 'order_id=' . urlencode($order_id) . '&status=SUCCESS&utr=' . urlencode($UTR) . '&amount=' . urlencode($amo) . '&gateway_txn=' . urlencode($transactionId);
         @file_get_contents($cb_url);

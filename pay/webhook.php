@@ -1,9 +1,10 @@
 <?php
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../pages/dbFunctions.php';
 
 header('Content-Type: application/json');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     echo json_encode(['status' => false, 'message' => 'Method Not Allowed']);
     exit;
@@ -12,19 +13,30 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true);
 if (!is_array($data)) {
-    $data = $_POST;
+    $data = array_merge($_GET, $_POST);
+}
+
+// Support raw SMS / Notification payload from forwarder apps
+$raw_text = $data['notification'] ?? ($data['text'] ?? ($data['body'] ?? ($data['msg'] ?? '')));
+if (!empty($raw_text)) {
+    // Extract SP- order code if present
+    if (preg_match('/SP-[A-Z0-9_-]+/i', $raw_text, $m_oid)) {
+        $data['order_id'] = $m_oid[0];
+    }
+    // Extract UTR if present (12 digits)
+    if (preg_match('/\b\d{12}\b/', $raw_text, $m_utr)) {
+        $data['utr'] = $m_utr[0];
+    }
+    // Extract Amount (e.g. Rs. 3.00, INR 3, etc.)
+    if (preg_match('/(?:rs\.?|inr)\s*([\d\.]+)/i', $raw_text, $m_amt)) {
+        $data['amount'] = $m_amt[1];
+    }
 }
 
 $status = strtoupper(trim($data['status'] ?? ($data['STATUS'] ?? 'SUCCESS')));
 $order_id = trim($data['order_id'] ?? ($data['orderId'] ?? ($data['client_txn_id'] ?? ($data['ORDERID'] ?? ''))));
 $utr = trim($data['utr'] ?? ($data['UTR'] ?? ($data['bank_txn_id'] ?? ($data['BANKTXNID'] ?? ''))));
 $amount = trim($data['amount'] ?? ($data['TXNAMOUNT'] ?? ''));
-
-if (empty($order_id)) {
-    http_response_code(400);
-    echo json_encode(['status' => false, 'message' => 'Missing order_id']);
-    exit;
-}
 
 $conn = new mysqli(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($conn->connect_error) {
@@ -34,6 +46,23 @@ if ($conn->connect_error) {
 }
 $conn->set_charset('utf8mb4');
 $conn->query("SET time_zone = '+05:30'");
+
+// Auto-match order by amount if order_id was not explicitly in the notification
+if (empty($order_id) && !empty($amount)) {
+    $amt_clean = mysqli_real_escape_string($conn, $amount);
+    $q_match = "SELECT order_id FROM orders WHERE status = 'PENDING' AND amount = '$amt_clean' ORDER BY id DESC LIMIT 1";
+    $res_match = $conn->query($q_match);
+    if ($res_match && $row = $res_match->fetch_assoc()) {
+        $order_id = $row['order_id'];
+    }
+}
+
+if (empty($order_id)) {
+    http_response_code(400);
+    echo json_encode(['status' => false, 'message' => 'Missing order_id or matching pending order']);
+    $conn->close();
+    exit;
+}
 
 $db_status = ($status === 'SUCCESS' || $status === 'TXN_SUCCESS' || $status === 'PAID' || $status === 'COMPLETED') ? 'SUCCESS' : 'FAILED';
 $utr_val = !empty($utr) ? $utr : ('WB_' . time());
@@ -45,11 +74,17 @@ $affected = $stmt->affected_rows;
 $stmt->close();
 $conn->close();
 
+// Trigger Merchant Callback automatically (updates PayPrints & releases prints)
+if ($db_status === 'SUCCESS' && function_exists('notify_merchant_callback')) {
+    notify_merchant_callback($order_id, 'SUCCESS', $utr_val);
+}
+
 echo json_encode([
     'status' => true,
-    'message' => 'Webhook processed successfully',
+    'message' => 'Webhook received and callback triggered automatically',
     'order_id' => $order_id,
     'updated_status' => $db_status,
+    'utr' => $utr_val,
     'affected_rows' => $affected
 ]);
 ?>

@@ -131,9 +131,13 @@ if ($row['status'] == 'PENDING') {
 
     $callback_url = $userRow['callback_url']; 
     $remark1 = $orderRow['remark1'];
-    // Update the callback URLs with remark1 parameter
-    $url0 = $callback_url . "?status=SUCCESS&order_id=" . urlencode($orderRow['order_id']) . "&remark1=" . urlencode($remark1);
-    file_get_contents($url0);
+    $bank_ref = $matched_transaction['bankReferenceNo'] ?? '';
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($orderRow['order_id'], 'SUCCESS', $bank_ref);
+    } else {
+        $url0 = $callback_url . "?status=SUCCESS&order_id=" . urlencode($orderRow['order_id']) . "&remark1=" . urlencode($remark1) . "&utr=" . urlencode($bank_ref);
+        @file_get_contents($url0);
+    }
 
 
     echo json_encode(['status' => 'success', 'redirect_url' => $orderRow['redirect_url']]);

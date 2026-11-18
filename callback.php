@@ -1,8 +1,15 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/pages/dbFunctions.php';
 
-$order_id = $_POST['order_id'] ?? '';
-$hash = $_POST['hash'] ?? '';
+$order_id = $_REQUEST['order_id'] ?? '';
+$hash = $_REQUEST['hash'] ?? '';
+$status = $_REQUEST['status'] ?? 'SUCCESS';
+$utr = $_REQUEST['utr'] ?? '';
+
+if (!empty($order_id) && function_exists('notify_merchant_callback')) {
+    notify_merchant_callback($order_id, $status, $utr);
+}
 
 $url = $murl . "/api/order-info";
 

@@ -50,6 +50,11 @@ if ($action === 'mark_paid' || $action === 'confirm' || (!empty($incoming_utr) &
     $up_stmt->bind_param("sss", $set_utr, $user_token, $order_id);
     $up_stmt->execute();
     $up_stmt->close();
+
+    // Automatically trigger callback to merchant URL
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($order_id, 'SUCCESS', $set_utr);
+    }
 }
 
 $sql = "SELECT status, amount, utr, create_date, remark1, gateway_txn FROM orders WHERE (user_token = ? OR user_token = 'dcb789d237d4f44cb5e4532abaf92866' OR user_token = 'admin_token_demo_1234567890') AND order_id = ?";

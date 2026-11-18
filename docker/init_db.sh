@@ -28,6 +28,6 @@ fi
 
 echo "Ensuring active gateway token and Paytm settings..."
 mysql upi_gateway -e "
-UPDATE users SET user_token='dcb789d237d4f44cb5e4532abaf92866', paytm_connected='Yes', upi_id='paytmqr5gfmzt@ptys', company='payprintsgateway' WHERE id=1;
+UPDATE users SET user_token='dcb789d237d4f44cb5e4532abaf92866', paytm_connected='Yes', upi_id='paytmqr5gfmzt@ptys', company='payprintsgateway', callback_url='https://payprints.in/api/payment/tajapi/callback' WHERE id=1;
 INSERT INTO paytm_tokens (id, user_token, phoneNumber, MID, Upiid, status, user_id) VALUES (1, 'dcb789d237d4f44cb5e4532abaf92866', '9999999999', 'PAYTM_MID_101', 'paytmqr5gfmzt@ptys', 'Active', 1) ON DUPLICATE KEY UPDATE user_token='dcb789d237d4f44cb5e4532abaf92866', Upiid='paytmqr5gfmzt@ptys', status='Active';
 " 2>/dev/null || true

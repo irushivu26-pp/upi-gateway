@@ -550,8 +550,65 @@ function parameters_check() {
 #######################################################################################
 
 function cpassword($password) {
-    
     return $password;
+}
+
+/**
+ * Universal Merchant Callback Dispatcher
+ * Automatically triggers the merchant's redirect_url / callback_url via POST and GET
+ * whenever an order is completed, ensuring instant fulfillment.
+ */
+function notify_merchant_callback($order_id, $status = 'SUCCESS', $utr = '') {
+    $con = connect_database();
+    $clean_oid = mysqli_real_escape_string($con, $order_id);
+    $sql = "SELECT o.redirect_url, o.gateway_txn, o.amount, o.remark1, o.user_token, u.callback_url 
+            FROM orders o 
+            LEFT JOIN users u ON o.user_token = u.user_token 
+            WHERE o.order_id = '$clean_oid' LIMIT 1";
+    $res = $con->query($sql);
+    if ($res && $row = $res->fetch_assoc()) {
+        $target_url = !empty($row['redirect_url']) ? $row['redirect_url'] : (!empty($row['callback_url']) ? $row['callback_url'] : 'https://payprints.in/api/payment/tajapi/callback');
+        $gateway_txn = $row['gateway_txn'] ?? '';
+        $amount = $row['amount'] ?? '';
+        $remark1 = $row['remark1'] ?? '';
+
+        $post_fields = [
+            'order_id' => $order_id,
+            'status' => $status,
+            'utr' => $utr,
+            'hash' => $gateway_txn,
+            'gateway_txn' => $gateway_txn,
+            'amount' => $amount,
+            'remark1' => $remark1
+        ];
+
+        // 1. Send POST callback with cURL
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $target_url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_fields));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_exec($ch);
+        curl_close($ch);
+
+        // 2. Also send GET callback as backup
+        $sep = (strpos($target_url, '?') !== false) ? '&' : '?';
+        $get_url = $target_url . $sep . http_build_query($post_fields);
+        $ch2 = curl_init();
+        curl_setopt($ch2, CURLOPT_URL, $get_url);
+        curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch2, CURLOPT_TIMEOUT, 3);
+        curl_setopt($ch2, CURLOPT_CONNECTTIMEOUT, 2);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+        curl_exec($ch2);
+        curl_close($ch2);
+
+        return true;
+    }
+    return false;
 }
 
 #######################################################################################
