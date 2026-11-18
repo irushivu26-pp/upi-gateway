@@ -37,6 +37,8 @@ if ($conn->connect_error) {
     echo json_encode(array('status' => false, 'message' => 'Database connection failed'));
     exit;
 }
+$conn->set_charset('utf8mb4');
+$conn->query("SET time_zone = '+05:30'");
 
 $sql = "SELECT status, amount, utr, create_date, remark1, gateway_txn FROM orders WHERE user_token = ? AND order_id = ?";
 $stmt = $conn->prepare($sql);

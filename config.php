@@ -50,6 +50,7 @@ if (!isset($conn) || !$conn) {
     $conn = @mysqli_connect(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
     if ($conn) {
         mysqli_set_charset($conn, 'utf8mb4');
+        mysqli_query($conn, "SET time_zone = '+05:30'");
     }
 }
 

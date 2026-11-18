@@ -83,11 +83,18 @@ if (count($result) === 0) {
 }
 
 $order_id = $result[0]['order_id'];
-$created_at = strtotime($result[0]['created_at']);
+$created_raw = $result[0]['created_at'] ?? '';
+$created_at = !empty($created_raw) ? strtotime($created_raw) : time();
 $current_time = time();
+$diff = abs($current_time - $created_at);
 
-// Check if the token has expired (more than 5 minutes)
-if (($current_time - $created_at) > (5 * 60)) {
+// Account for possible 5.5 hour (19800 sec) UTC/IST offset between DB server and PHP
+if ($diff >= 19500 && $diff <= 20100) {
+    $diff = abs($diff - 19800);
+}
+
+// Allow 20 minutes for payment session
+if ($diff > (20 * 60)) {
     echo "Token has expired";
     exit;
 }
