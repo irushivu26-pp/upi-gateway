@@ -7,33 +7,45 @@ require_once __DIR__ . '/../pages/dbFunctions.php';
 $raw_input = file_get_contents('php://input');
 $json_data = json_decode($raw_input, true);
 
-$data = [];
+$data = array_merge($_GET, $_POST);
 if (is_array($json_data)) {
-    // Check if nested in body (Paytm v2 webhook format)
+    $data = array_merge($data, $json_data);
     if (isset($json_data['body']) && is_array($json_data['body'])) {
-        $data = $json_data['body'];
+        $data = array_merge($data, $json_data['body']);
         if (isset($json_data['body']['resultInfo']) && is_array($json_data['body']['resultInfo'])) {
-            $data['status'] = $json_data['body']['resultInfo']['resultStatus'] ?? '';
-            $data['respCode'] = $json_data['body']['resultInfo']['resultCode'] ?? '';
-            $data['respMsg'] = $json_data['body']['resultInfo']['resultMsg'] ?? '';
+            $data['status'] = $json_data['body']['resultInfo']['resultStatus'] ?? ($data['status'] ?? '');
+            $data['respCode'] = $json_data['body']['resultInfo']['resultCode'] ?? ($data['respCode'] ?? '');
+            $data['respMsg'] = $json_data['body']['resultInfo']['resultMsg'] ?? ($data['respMsg'] ?? '');
         }
-    } else {
-        $data = $json_data;
     }
-} else {
-    $data = array_merge($_GET, $_POST);
 }
 
-// 1. Extract Order Identifier
-$order_id = trim($data['ORDERID'] ?? ($data['orderId'] ?? ($data['ORDER_ID'] ?? ($data['order_id'] ?? ($data['client_txn_id'] ?? ($data['MERC_UNQ_REF'] ?? ''))))));
+// 1. Extract Order Identifier (check all merchant reference & transaction reference keys)
+$order_id = trim(
+    $data['ORDERID'] ?? (
+    $data['orderId'] ?? (
+    $data['order_id'] ?? (
+    $data['ORDER_ID'] ?? (
+    $data['MERC_UNQ_REF'] ?? (
+    $data['merUnqRef'] ?? (
+    $data['mercUnqRef'] ?? (
+    $data['merchantOrderId'] ?? (
+    $data['merchantTransactionId'] ?? (
+    $data['client_txn_id'] ?? (
+    $data['tr'] ?? (
+    $data['txnRef'] ?? (
+    $data['txId'] ?? ''
+))))))))))))
+);
 
 // 2. Extract Status
-$status_raw = strtoupper(trim($data['STATUS'] ?? ($data['status'] ?? ($data['resultStatus'] ?? ''))));
-$is_success = ($status_raw === 'TXN_SUCCESS' || $status_raw === 'SUCCESS' || $status_raw === 'COMPLETED' || $status_raw === 'PAID' || ($data['RESPCODE'] ?? ($data['respCode'] ?? '')) === '01');
+$status_raw = strtoupper(trim($data['STATUS'] ?? ($data['status'] ?? ($data['resultStatus'] ?? ($data['txnStatus'] ?? '')))));
+$resp_code = trim($data['RESPCODE'] ?? ($data['respCode'] ?? ''));
+$is_success = ($status_raw === 'TXN_SUCCESS' || $status_raw === 'SUCCESS' || $status_raw === 'COMPLETED' || $status_raw === 'PAID' || $resp_code === '01');
 
 // 3. Extract UTR / Transaction IDs
-$utr = trim($data['BANKTXNID'] ?? ($data['bankTxnId'] ?? ($data['utr'] ?? ($data['bank_txn_id'] ?? ''))));
-$paytm_txn_id = trim($data['TXNID'] ?? ($data['txnId'] ?? ($data['gateway_txn'] ?? '')));
+$utr = trim($data['BANKTXNID'] ?? ($data['bankTxnId'] ?? ($data['utr'] ?? ($data['bank_txn_id'] ?? ($data['bankTxnNo'] ?? '')))));
+$paytm_txn_id = trim($data['TXNID'] ?? ($data['txnId'] ?? ($data['gateway_txn'] ?? ($data['paytmTxnId'] ?? ''))));
 $amount = trim($data['TXNAMOUNT'] ?? ($data['txnAmount'] ?? ($data['amount'] ?? '')));
 $mid = trim($data['MID'] ?? ($data['mid'] ?? ''));
 
