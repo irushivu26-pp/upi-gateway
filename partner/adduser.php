@@ -64,7 +64,7 @@ exit;
     $location = mysqli_real_escape_string($conn, $_POST['location']);
         $key = md5(rand(00000000, 99999999));
         $pass = password_hash($password, PASSWORD_BCRYPT);
-        $today = (date("Y-m-d") + 3);
+        $today = date("Y-m-d", strtotime("+3 days"));
 
         $register = "INSERT INTO `users`(`name`, `mobile`, `role`, `password`, `email`, `company`, `pin`, `location`, `user_token`, `expiry`) VALUES ('$name','$mobile','User','$pass','$email','$company','$pin','$location','$key','$today')";
         $result = mysqli_query($conn, $register);
