@@ -89,11 +89,12 @@ if (!empty($order_id)) {
 
 // Fallback: match by recent pending order with same amount if order_id is missing or Paytm internal order ID
 if (empty($matched_order_id) && !empty($amount)) {
-    $clean_amt = mysqli_real_escape_string($conn, $amount);
+    $amt_num = (float)$amount;
+    $clean_amt = number_format($amt_num, 2, '.', '');
     $q_amt = "SELECT o.order_id, o.redirect_url, o.gateway_txn, o.amount, o.remark1, u.callback_url 
               FROM orders o 
               LEFT JOIN users u ON o.user_token = u.user_token 
-              WHERE o.status = 'PENDING' AND o.amount = '$clean_amt' 
+              WHERE o.status = 'PENDING' AND (o.amount = '$clean_amt' OR CAST(o.amount AS DECIMAL(10,2)) = $amt_num) 
               ORDER BY o.id DESC LIMIT 1";
     $res_amt = $conn->query($q_amt);
     if ($res_amt && $row = $res_amt->fetch_assoc()) {

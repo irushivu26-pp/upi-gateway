@@ -20,17 +20,21 @@ if (!is_array($data)) {
 // Support raw SMS / Notification payload from forwarder apps
 $raw_text = $data['notification'] ?? ($data['text'] ?? ($data['body'] ?? ($data['msg'] ?? '')));
 if (!empty($raw_text)) {
-    // Extract SP- order code if present
-    if (preg_match('/SP-[A-Z0-9_-]+/i', $raw_text, $m_oid)) {
-        $data['order_id'] = $m_oid[0];
+    // Extract SP- or PL- order code if present
+    if (preg_match('/(SP-[A-Z0-9_-]+|PL\d+)/i', $raw_text, $m_oid)) {
+        $data['order_id'] = $m_oid[1];
     }
-    // Extract UTR if present (12 digits)
-    if (preg_match('/\b\d{12}\b/', $raw_text, $m_utr)) {
+    // Extract UTR if present (explicit or 12-digit)
+    if (preg_match('/(?:utr|rrn|ref|upi ref|txn id|ref no|transaction id)[\s\:\.\-]+(\d{12})/i', $raw_text, $m_utr_lbl)) {
+        $data['utr'] = $m_utr_lbl[1];
+    } elseif (preg_match('/\b\d{12}\b/', $raw_text, $m_utr)) {
         $data['utr'] = $m_utr[0];
     }
-    // Extract Amount (e.g. Rs. 3.00, INR 3, etc.)
-    if (preg_match('/(?:rs\.?|inr)\s*([\d\.]+)/i', $raw_text, $m_amt)) {
+    // Extract Amount (supports Rs, INR, ₹, and credited amounts)
+    if (preg_match('/(?:rs\.?|inr|₹)\s*([\d]+(?:\.\d{1,2})?)/i', $raw_text, $m_amt)) {
         $data['amount'] = $m_amt[1];
+    } elseif (preg_match('/(?:credited|received|payment of)\s*(?:by|with)?\s*(?:rs\.?|inr|₹)?\s*([\d]+(?:\.\d{1,2})?)/i', $raw_text, $m_amt2)) {
+        $data['amount'] = $m_amt2[1];
     }
 }
 
@@ -59,8 +63,9 @@ if (!empty($order_id)) {
 
 // Auto-match order by amount if order_id was not explicitly matched
 if (empty($matched_oid) && !empty($amount)) {
-    $amt_clean = mysqli_real_escape_string($conn, $amount);
-    $q_match = "SELECT order_id FROM orders WHERE status = 'PENDING' AND amount = '$amt_clean' ORDER BY id DESC LIMIT 1";
+    $amt_num = (float)$amount;
+    $amt_clean = number_format($amt_num, 2, '.', '');
+    $q_match = "SELECT order_id FROM orders WHERE status = 'PENDING' AND (amount = '$amt_clean' OR CAST(amount AS DECIMAL(10,2)) = $amt_num) ORDER BY id DESC LIMIT 1";
     $res_match = $conn->query($q_match);
     if ($res_match && $row = $res_match->fetch_assoc()) {
         $matched_oid = $row['order_id'];
