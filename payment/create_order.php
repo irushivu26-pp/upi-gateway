@@ -67,6 +67,10 @@ function send_api_response($is_success, $message, $order_id = '', $payment_url =
     exit;
 }
 
+function send_order_success($order_id, $payment_link, $native_upi = '') {
+    send_api_response(true, "Order Created Successfully", $order_id, $payment_link, $native_upi);
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     header('Content-Type: application/json');
     echo json_encode(array("status" => false, "msg" => "Unauthorized Access"));

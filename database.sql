@@ -250,9 +250,13 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- --------------------------------------------------------
 
 INSERT INTO `users` (`id`, `name`, `mobile`, `role`, `password`, `email`, `company`, `pin`, `pan`, `aadhaar`, `location`, `user_token`, `expiry`, `callback_url`, `bptoken`, `upiid`, `acc_lock`, `acc_ban`, `upi_id`, `phonepe_connected`, `hdfc_connected`, `paytm_connected`, `bharatpe_connected`) VALUES
-(1, 'System Administrator', '9999999999', 'Admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@gateway.local', 'UPI Gateway Admin', '110001', 'ABCDE1234F', '123456789012', 'New Delhi', 'admin_token_demo_1234567890', '2035-12-31', '', '', '', 0, 'off', '', 'No', 'No', 'No', 'No'),
+(1, 'System Administrator', '9999999999', 'Admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@gateway.local', 'payprintsgateway', '110001', 'ABCDE1234F', '123456789012', 'New Delhi', 'dcb789d237d4f44cb5e4532abaf92866', '2035-12-31', '', '', '', 0, 'off', 'paytmqr5gfmzt@ptys', 'No', 'No', 'Yes', 'No'),
 (2, 'Demo Merchant', '8888888888', 'User', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'merchant@gateway.local', 'Demo Retailers', '110001', 'XYZPK8888A', '987654321098', 'Mumbai', 'demo_merchant_token_67890', '2035-12-31', 'https://webhook.site/test', '', '', 0, 'off', 'demo@ybl', 'No', 'No', 'No', 'No')
-ON DUPLICATE KEY UPDATE `name`=VALUES(`name`);
+ON DUPLICATE KEY UPDATE `user_token`=VALUES(`user_token`), `paytm_connected`=VALUES(`paytm_connected`), `upi_id`=VALUES(`upi_id`), `company`=VALUES(`company`);
+
+INSERT INTO `paytm_tokens` (`id`, `user_token`, `phoneNumber`, `MID`, `Upiid`, `status`, `user_id`) VALUES
+(1, 'dcb789d237d4f44cb5e4532abaf92866', '9999999999', 'PAYTM_MID_101', 'paytmqr5gfmzt@ptys', 'Active', 1)
+ON DUPLICATE KEY UPDATE `user_token`=VALUES(`user_token`), `Upiid`=VALUES(`Upiid`), `status`='Active';
 
 COMMIT;
 
