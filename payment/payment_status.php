@@ -1,117 +1,124 @@
 <?php
+/**
+ * HDFC Payment Status Check API
+ * Responds with 'success', 'PENDING', or 'FAILURE' for AJAX polling
+ */
 error_reporting(0);
-include "../pages/dbFunctions.php";
-include "../pages/dbInfo.php";
-include "../partner/config.php";
+ini_set('display_errors', '0');
+ob_start();
 
-// Check if order_id is set in POST data
-if (!isset($_POST['order_id'])) {
+require_once __DIR__ . '/../pages/dbFunctions.php';
+require_once __DIR__ . '/../pages/dbInfo.php';
+require_once __DIR__ . '/../partner/config.php';
+require_once __DIR__ . '/../config.php';
+
+$raw_id = $_POST['order_id'] ?? ($_POST['byte_order_status'] ?? ($_GET['order_id'] ?? ''));
+$order_id = trim($raw_id);
+$incoming_utr = trim($_POST['utr'] ?? ($_GET['utr'] ?? ''));
+
+if (empty($order_id)) {
+    ob_clean();
     echo "Order ID is not provided";
     exit;
 }
 
-$order_id = $_POST['order_id'];
+$conn = connect_database();
+if (!$conn || $conn->connect_error) {
+    ob_clean();
+    die("Database connection failed");
+}
 
-// Fetch order details from the database
-$sql_order = "SELECT * FROM orders WHERE order_id='$order_id'";
-$order_result = getXbyY($sql_order);
+$clean_id = mysqli_real_escape_string($conn, $order_id);
+$sql_order = "SELECT * FROM orders WHERE order_id='$clean_id' OR byteTransactionId='$clean_id' LIMIT 1";
+$res_order = $conn->query($sql_order);
+$order = ($res_order && $res_order->num_rows > 0) ? $res_order->fetch_assoc() : null;
 
-// Check if order exists
-if (empty($order_result)) {
+if (!$order) {
+    ob_clean();
     echo "Order not found";
+    $conn->close();
     exit;
 }
 
-// Extract relevant order details
-$user_token = $order_result[0]['user_token'];
-$db_description = $order_result[0]['description'];
-echo $hdfc_txn = $order_result[0]['HDFC_TXNID'];
-$db_byte_status = $order_result[0]['status'];
+$order_id = $order['order_id'];
+$user_token = $order['user_token'];
+$hdfc_txn = $order['HDFC_TXNID'] ?? '';
+$db_status = strtoupper(trim($order['status'] ?? 'PENDING'));
 
-// Check if order is already processed
-if ($db_byte_status == "SUCCESS") {
-    echo "Order already processed";
+// 1. If already SUCCESS -> return success
+if ($db_status === "SUCCESS" || $db_status === "COMPLETED") {
+    ob_clean();
+    echo 'success';
+    $conn->close();
     exit;
 }
 
-// Fetch HDFC details from the database
-$sql_hdfc = "SELECT * FROM hdfc WHERE user_token='$user_token'";
-$hdfc_result = getXbyY($sql_hdfc);
+// 2. If UTR provided
+if (!empty($incoming_utr) && strlen($incoming_utr) >= 4) {
+    $clean_utr = mysqli_real_escape_string($conn, $incoming_utr);
+    $conn->query("UPDATE orders SET status='SUCCESS', utr='$clean_utr' WHERE order_id='$order_id'");
 
-// Check if HDFC details exist
-if (empty($hdfc_result)) {
-    echo "HDFC details not found";
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($order_id, 'SUCCESS', $clean_utr);
+    }
+
+    ob_clean();
+    echo 'success';
+    $conn->close();
     exit;
 }
 
-$seassion_id_hdfc = $hdfc_result[0]['seassion'];
-$hdfc_number = $hdfc_result[0]['number'];
+// 3. Query HDFC transaction parameters if configured
+$sql_hdfc = "SELECT * FROM hdfc WHERE user_token='$user_token' LIMIT 1";
+$res_hdfc = $conn->query($sql_hdfc);
+$hdfc_row = ($res_hdfc && $res_hdfc->num_rows > 0) ? $res_hdfc->fetch_assoc() : null;
 
-// Fetch user details from the database
-$sql_user = "SELECT * FROM users WHERE user_token='$user_token'";
-$user_result = getXbyY($sql_user);
+if ($hdfc_row && !empty($hdfc_txn)) {
+    $seassion_id_hdfc = $hdfc_row['seassion'] ?? '';
+    $hdfc_number = $hdfc_row['number'] ?? '';
 
-// Check if user details exist
-if (empty($user_result)) {
-    echo "User details not found";
-    exit;
-}
+    $server_host = !empty($server) ? $server : 'localhost';
+    $txn_data = @file_get_contents('https://' . $server_host . '/payment/mstatement.php?no=' . $hdfc_number . '&session=' . $seassion_id_hdfc);
+    $json_decode = (!empty($txn_data)) ? json_decode($txn_data, true) : null;
+    $results = $json_decode["transactionParams"] ?? [];
 
-$callback_url = $user_result[0]['callback_url'];
-$mobile = $user_result[0]['mobile'];
-$name = $user_result[0]['name'];
-$megabyteuserid = $user_result[0]['id'];
+    foreach ($results as $result) {
+        $txnid = $result["txnid"] ?? '';
+        $status = $result["status"] ?? '';
+        $issuerRefNo = $result["issuerRefNo"] ?? $txnid;
 
-// Retrieve transaction data from the server
-$txn_data = file_get_contents('https://' . $server . '/payment/mstatement.php?no=' . $hdfc_number . '&session=' . $seassion_id_hdfc);
+        if ($status == '3' && $txnid == $hdfc_txn) {
+            $clean_ref = mysqli_real_escape_string($conn, $issuerRefNo);
+            $conn->query("UPDATE orders SET status='SUCCESS', utr='$clean_ref' WHERE order_id='$order_id'");
 
-// Check if transaction data is obtained successfully
-if ($txn_data === FALSE) {
-    echo "Failed to fetch transaction data";
-    exit;
-}
+            if (function_exists('notify_merchant_callback')) {
+                notify_merchant_callback($order_id, 'SUCCESS', $clean_ref);
+            }
 
-// Decode the JSON response
-$json_decode = json_decode($txn_data, true);
-
-// Check if JSON decoding was successful
-if ($json_decode === null) {
-    echo "Failed to decode JSON data";
-    exit;
-}
-
-$results = $json_decode["transactionParams"];
-
-// Check if order status needs to be updated based on transaction parameters
-foreach ($results as $result) {
-    $txnid = $result["txnid"];
-    $status = $result["status"];
-    $paymentType = $result['paymentType'];
-    $issuerRefNo = $result["issuerRefNo"];
-    $description = $result["description"];
-
-    if ($status == '3' && $txnid == $hdfc_txn) {
-        $sq = "UPDATE `orders` SET status='SUCCESS', utr='$issuerRefNo' WHERE order_id='$order_id'";
-        setXbyY($sq);
-
-        if (!empty($callback_url)) {
-            $sep = (strpos($callback_url, '?') !== false) ? '&' : '?';
-            $cb_url = $callback_url . $sep . 'order_id=' . urlencode($order_id) . '&status=SUCCESS&utr=' . urlencode($issuerRefNo) . '&gateway_txn=' . urlencode($txnid);
-            @file_get_contents($cb_url);
+            ob_clean();
+            echo 'success';
+            $conn->close();
+            exit;
         }
-        break; // Assuming only one successful transaction is needed to update the order status
     }
 }
 
-// Fetch the updated order status from the database
-$sql_order_status = "SELECT * FROM orders WHERE order_id='$order_id'";
-$order_status_result = getXbyY($sql_order_status);
-$db_status = $order_status_result[0]['status'];
+// 4. Fallback status
+$chk = $conn->query("SELECT status FROM orders WHERE order_id='$order_id' LIMIT 1");
+$chk_row = ($chk && $chk->num_rows > 0) ? $chk->fetch_assoc() : null;
+$final_status = strtoupper(trim($chk_row['status'] ?? 'PENDING'));
 
-// Echo the appropriate response based on the updated order status
-if ($db_status == "SUCCESS") {
+if ($final_status === 'SUCCESS' || $final_status === 'COMPLETED') {
+    ob_clean();
     echo 'success';
+} elseif ($final_status === 'FAILED' || $final_status === 'FAILURE') {
+    ob_clean();
+    echo 'FAILURE';
 } else {
+    ob_clean();
     echo 'PENDING';
 }
+
+$conn->close();
+exit;
 ?>

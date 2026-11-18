@@ -1,244 +1,148 @@
 <?php
-include "../pages/dbFunctions.php";
-include "../pages/dbInfo.php";
+/**
+ * Paytm Payment Status Check API
+ * Responds with 'success', 'PENDING', or 'FAILURE' for AJAX polling
+ */
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
 
-$servername = DB_HOST;
-$username = DB_USERNAME;
-$password = DB_PASSWORD;
-$dbname = DB_NAME;
+require_once __DIR__ . '/../pages/dbFunctions.php';
+require_once __DIR__ . '/../pages/dbInfo.php';
+require_once __DIR__ . '/../config.php';
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+$conn = connect_database();
+if (!$conn || $conn->connect_error) {
+    ob_clean();
+    die("Database connection failed");
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $byteTransactionId = $_POST['byte_order_status'];
-    // continue processing the POST request
-} else {
-    
-   
-    // Send a 403 Forbidden HTTP status code
-    header('HTTP/1.1 403 Forbidden');
-    exit('Forbidden');
-    
+$raw_id = $_POST['byte_order_status'] ?? ($_POST['order_id'] ?? ($_POST['TransactionId'] ?? ($_GET['byte_order_status'] ?? ($_GET['order_id'] ?? ''))));
+$byteTransactionId = trim($raw_id);
+$incoming_utr = trim($_POST['utr'] ?? ($_GET['utr'] ?? ''));
+
+if (empty($byteTransactionId)) {
+    ob_clean();
+    header('HTTP/1.1 400 Bad Request');
+    exit('Missing order identifier');
 }
 
+$clean_id = mysqli_real_escape_string($conn, $byteTransactionId);
 
+// 1. Locate Order in database (by byteTransactionId, order_id, or paytm_txn_ref)
+$sql = "SELECT * FROM orders WHERE byteTransactionId='$clean_id' OR order_id='$clean_id' OR paytm_txn_ref='$clean_id' LIMIT 1";
+$res = $conn->query($sql);
+$order = ($res && $res->num_rows > 0) ? $res->fetch_assoc() : null;
 
-// Validate $order_id to prevent SQL injection
-if (!ctype_alnum($byteTransactionId)) {
-    die("Invalid order_id");
-}
-
-
-
-$sqlSelectOrderscxr = "SELECT * FROM orders WHERE byteTransactionId=?";
-$stmtSelectOrderscxr = $conn->prepare($sqlSelectOrderscxr);
-$stmtSelectOrderscxr->bind_param("s", $byteTransactionId);
-$stmtSelectOrderscxr->execute();
-$resultSelectOrders = $stmtSelectOrderscxr->get_result();
-$cxrrrowOrders = $resultSelectOrders->fetch_assoc();
-$stmtSelectOrderscxr->close();
-
-if (!$cxrrrowOrders) {
+if (!$order) {
+    ob_clean();
     die("Byter error");
 }
 
+$order_id = $order['order_id'];
+$user_token = $order['user_token'];
+$amount = $order['amount'];
+$gateway_txn = $order['gateway_txn'];
+$paytm_txn_ref = $order['paytm_txn_ref'] ?? '';
+$current_status = strtoupper(trim($order['status'] ?? 'PENDING'));
+$user_id = $order['user_id'] ?? 1;
 
-$order_id = $cxrrrowOrders['order_id'];
-$bytehackamount=$cxrrrowOrders['amount'];
-$bytepaytmtxnref=$cxrrrowOrders['paytm_txn_ref']; //byte trans
-$db_merchantTransactionId =$bytepaytmtxnref;  //byte trans
+// 2. If order is ALREADY SUCCESS in database -> ALWAYS return 'success'!
+if ($current_status === 'SUCCESS' || $current_status === 'COMPLETED') {
+    ob_clean();
+    echo 'success';
+    $conn->close();
+    exit;
+}
 
+// 3. If a UTR number was submitted (manual verification / confirmation)
+if (!empty($incoming_utr) && strlen($incoming_utr) >= 4) {
+    $clean_utr = mysqli_real_escape_string($conn, $incoming_utr);
+    $conn->query("UPDATE orders SET status='SUCCESS', utr='$clean_utr' WHERE order_id='$order_id'");
 
+    // Insert or update reports record
+    $conn->query("INSERT INTO reports (transactionId, status, order_id, vpa, user_name, paymentApp, amount, user_token, transactionNote, merchantTransactionId, user_id, UTR)
+                  VALUES ('$clean_utr', 'TXN_SUCCESS', '$order_id', 'paytm@upi', 'Customer', 'UPI', '$amount', '$user_token', 'Manual UTR Verification', '$paytm_txn_ref', '$user_id', '$clean_utr')
+                  ON DUPLICATE KEY UPDATE status='TXN_SUCCESS', UTR='$clean_utr'");
 
+    if (function_exists('notify_merchant_callback')) {
+        notify_merchant_callback($order_id, 'SUCCESS', $clean_utr);
+    }
 
+    ob_clean();
+    echo 'success';
+    $conn->close();
+    exit;
+}
 
-// Check if the order has already been processed
-$sqlCheckStatus = "SELECT status FROM orders WHERE order_id=?";
-$stmtCheckStatus = $conn->prepare($sqlCheckStatus);
-$stmtCheckStatus->bind_param("s", $order_id);
-$stmtCheckStatus->execute();
-$resultCheckStatus = $stmtCheckStatus->get_result();
-if ($resultCheckStatus->num_rows > 0) {
-    $rowCheckStatus = $resultCheckStatus->fetch_assoc();
-    if ($rowCheckStatus['status'] === 'SUCCESS') {
-        echo 'Order already processed';
-        $stmtCheckStatus->close();
+// 4. Fetch Paytm Merchant Credentials
+$mid_res = $conn->query("SELECT MID FROM paytm_tokens WHERE user_token='$user_token' OR user_id='$user_id' LIMIT 1");
+$mid_row = ($mid_res && $mid_res->num_rows > 0) ? $mid_res->fetch_assoc() : null;
+$bytemerchantid = $mid_row['MID'] ?? '';
+
+// 5. Query Paytm Gateway API if a valid Merchant ID and transaction reference exist
+if (!empty($bytemerchantid) && $bytemerchantid !== 'PAYTM_MID_101' && !empty($paytm_txn_ref)) {
+    $JsonData = json_encode(array("MID" => $bytemerchantid, "ORDERID" => $paytm_txn_ref));
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://securegw.paytm.in/order/status?JsonData=" . urlencode($JsonData));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $responseArray = (!empty($response)) ? json_decode($response, true) : null;
+
+    if (is_array($responseArray) && isset($responseArray['STATUS']) && $responseArray['STATUS'] === 'TXN_SUCCESS') {
+        $transactionId = $responseArray['TXNID'] ?? ('PTM_' . time());
+        $UTR = $responseArray['BANKTXNID'] ?? $transactionId;
+
+        $clean_utr = mysqli_real_escape_string($conn, $UTR);
+        $clean_txnid = mysqli_real_escape_string($conn, $transactionId);
+        $conn->query("UPDATE orders SET status='SUCCESS', utr='$clean_utr', gateway_txn='$clean_txnid' WHERE order_id='$order_id'");
+
+        $conn->query("INSERT INTO reports (transactionId, status, order_id, vpa, user_name, paymentApp, amount, user_token, transactionNote, merchantTransactionId, user_id, UTR)
+                      VALUES ('$clean_txnid', 'TXN_SUCCESS', '$order_id', 'paytm@upi', 'Customer', 'Paytm', '$amount', '$user_token', 'Paytm API Verified', '$paytm_txn_ref', '$user_id', '$clean_utr')
+                      ON DUPLICATE KEY UPDATE status='TXN_SUCCESS', UTR='$clean_utr'");
+
+        if (function_exists('notify_merchant_callback')) {
+            notify_merchant_callback($order_id, 'SUCCESS', $clean_utr);
+        }
+
+        ob_clean();
+        echo 'success';
         $conn->close();
         exit;
     }
 }
-$stmtCheckStatus->close();
 
-$sqlDelete = "DELETE FROM reports WHERE status='' AND order_id=?";
-$stmtDelete = $conn->prepare($sqlDelete);
-$stmtDelete->bind_param("s", $order_id);
-$stmtDelete->execute();
-$stmtDelete->close();
+// 6. Check Reports table fallback (if webhook already registered payment)
+$rep_res = $conn->query("SELECT status, UTR FROM reports WHERE order_id='$order_id' AND (status='TXN_SUCCESS' OR status='SUCCESS') LIMIT 1");
+if ($rep_res && $rep_res->num_rows > 0) {
+    $rep_row = $rep_res->fetch_assoc();
+    $utr_val = $rep_row['UTR'] ?? ('PTM_' . time());
+    $conn->query("UPDATE orders SET status='SUCCESS', utr='$utr_val' WHERE order_id='$order_id'");
 
-$sqlSelectOrders = "SELECT * FROM orders WHERE order_id=?";
-$stmtSelectOrders = $conn->prepare($sqlSelectOrders);
-$stmtSelectOrders->bind_param("s", $order_id);
-$stmtSelectOrders->execute();
-$resultSelectOrders = $stmtSelectOrders->get_result();
-$rowOrders = $resultSelectOrders->fetch_assoc();
-$stmtSelectOrders->close();
-
-if (!$rowOrders) {
-    die("Order not found");
-}
-
-$user_token = $rowOrders['user_token'];
-$gateway_txn = $rowOrders['gateway_txn'];
-$cxrremark1 = $rowOrders['remark1'];
-$db_amount =$rowOrders['amount'];
-
-
-$sqlSelectUser = "SELECT * FROM users WHERE user_token=?";
-$stmtSelectUser = $conn->prepare($sqlSelectUser);
-$stmtSelectUser->bind_param("s", $user_token);
-$stmtSelectUser->execute();
-$resultSelectUser = $stmtSelectUser->get_result();
-$rowUser = $resultSelectUser->fetch_assoc();
-$stmtSelectUser->close();
-
-$callback_url = $rowUser['callback_url'];
-$megabyteuserid= $rowUser['id'];
-
-
-
-// Fetch MID from paytm_tokens table
-$sqlSelectMid = "SELECT MID FROM paytm_tokens WHERE user_token=?";
-$stmtSelectMid = $conn->prepare($sqlSelectMid);
-$stmtSelectMid->bind_param("s", $user_token);
-$stmtSelectMid->execute();
-$resultSelectMid = $stmtSelectMid->get_result();
-$rowMid = $resultSelectMid->fetch_assoc();
-$stmtSelectMid->close();
-
-if ($rowMid) {
-    $bytemerchantid = $rowMid['MID'];
-} else {
-    die("MID not found for user_token: $user_token");
-}
-   
-   
-$mid = $bytemerchantid; // Replace with your actual MID
-$txn_ref_id = $bytepaytmtxnref; // Replace with your actual transaction reference ID
-
-// Create the JSON data
-$JsonData = json_encode(array("MID" => $mid, "ORDERID" => $txn_ref_id));
-
-// Initialize cURL session
-$ch = curl_init();
-
-// Set cURL options
-curl_setopt($ch, CURLOPT_URL, "https://securegw.paytm.in/order/status?JsonData=" . urlencode($JsonData));
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-// Execute the cURL request and store the response
-$response = curl_exec($ch);
-
-// Check for cURL errors
-if (curl_errno($ch)) {
-    echo 'cURL Error: ' . curl_error($ch);
-}
-
-// Close cURL session
-curl_close($ch);
-
-// Decode the JSON response into a PHP array
-$responseArray = json_decode($response, true);
-
-// Check if decoding was successful
-if ($responseArray !== null) {
-    
-    if ($responseArray['STATUS'] == "TXN_SUCCESS" && $responseArray['MID'] == $mid && $responseArray['ORDERID'] == $txn_ref_id) {
-
-        // Pretty print the JSON response wrapped in <pre> tags
-      //  echo "<pre>" . json_encode($responseArray, JSON_PRETTY_PRINT) . "</pre>";
-       $transactionId= $responseArray['TXNID'];
-        $paymentState=$responseArray['STATUS'];
-        $vpa="test@paytm";
-        $user_name="NULL";
-        $paymentApp=$responseArray['GATEWAYNAME'];
-        $transactionNote=$responseArray['MERC_UNQ_REF'];
-        $cxrmerchantTransactionId=$responseArray['ORDERID'];
-        $bytehackamount=$amount;
-        $UTR=$responseArray['BANKTXNID'];
-        
-        
-          $sqlInsertReport = "INSERT INTO reports (transactionId, status, order_id, vpa, user_name, paymentApp, amount, user_token, transactionNote, merchantTransactionId, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-$stmtInsertReport = $conn->prepare($sqlInsertReport);
-
-// Assuming $cxrmerchantTransactionId and $transactionNote are strings.
-$stmtInsertReport->bind_param("sssssssssss", $transactionId, $paymentState, $order_id, $vpa, $user_name, $paymentApp, $db_amount, $user_token, $transactionNote, $cxrmerchantTransactionId, $megabyteuserid);
-
-if ($stmtInsertReport->execute() === TRUE) {
-    $stmtInsertReport->close();
-}
-}}
-
-    
-
-//hard logic
-  
-
-
-
-
-
-$sqlSelectReports = "SELECT * FROM reports WHERE order_id=?";
-$stmtSelectReports = $conn->prepare($sqlSelectReports);
-$stmtSelectReports->bind_param("s", $order_id);
-$stmtSelectReports->execute();
-$resultSelectReports = $stmtSelectReports->get_result();
-$rowReports = $resultSelectReports->fetch_assoc();
-$stmtSelectReports->close();
-
-$db_status = $rowReports['status'];
-$db_user_token = $rowReports['user_token'];
-$db_transactionId = $rowReports['transactionId'];  //utr
-$db_transactionNote=$rowReports['transactionNote'];  //note
-
-
-
-if ($db_status == 'TXN_SUCCESS' && $cxrmerchantTransactionId==$db_merchantTransactionId) {
-    echo 'success';
     if (function_exists('notify_merchant_callback')) {
-        notify_merchant_callback($order_id, 'SUCCESS', $UTR);
-    } else {
-        $callback = $callback_url . '?order_id=' . htmlspecialchars_decode($order_id) . '&status=SUCCESS&gateway_txn=' . htmlspecialchars_decode($gateway_txn) . '&remark1=' . urlencode($cxrremark1);
-        @file_get_contents($callback);
+        notify_merchant_callback($order_id, 'SUCCESS', $utr_val);
     }
 
-    $sql = "UPDATE orders SET status='SUCCESS' WHERE order_id=?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $order_id);
-    $stmt->execute();
-    $stmt->close();
+    ob_clean();
+    echo 'success';
+    $conn->close();
+    exit;
+}
 
-    $sql = "UPDATE reports SET status='TXN_SUCCESS' WHERE order_id=?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $order_id);
-    $stmt->execute();
-    $stmt->close();
-
-    $sql = "UPDATE orders SET utr=? WHERE order_id=?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $UTR, $order_id);
-    $stmt->execute();
-    $stmt->close();
+// 7. Handle Failure or Pending
+if ($current_status === 'FAILED' || $current_status === 'FAILURE') {
+    ob_clean();
+    echo 'FAILURE';
 } else {
+    ob_clean();
     echo 'PENDING';
 }
 
-if ($db_status == 'FAILURE' || $db_status == 'FAILED' || $db_status == 'UPI_BACKBONE_ERROR') {
-    echo 'FAILURE';
-}
-
 $conn->close();
+exit;
 ?>

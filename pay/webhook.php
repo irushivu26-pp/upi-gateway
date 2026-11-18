@@ -86,6 +86,12 @@ $stmt->bind_param("sss", $db_status, $utr_val, $order_id);
 $stmt->execute();
 $affected = $stmt->affected_rows;
 $stmt->close();
+
+if ($db_status === 'SUCCESS') {
+    $conn->query("INSERT INTO reports (transactionId, status, order_id, vpa, user_name, paymentApp, amount, user_token, transactionNote, merchantTransactionId, user_id, UTR)
+                  VALUES ('$utr_val', 'SUCCESS', '$order_id', 'webhook@upi', 'Customer', 'UPI', 0, '', 'Notification Webhook', '$utr_val', 1, '$utr_val')
+                  ON DUPLICATE KEY UPDATE status='SUCCESS', UTR='$utr_val'");
+}
 $conn->close();
 
 // Trigger Merchant Callback automatically (updates PayPrints & releases prints)

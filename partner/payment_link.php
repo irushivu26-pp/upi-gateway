@@ -116,6 +116,7 @@ if (isset($_POST['number'])) {
                 <th>Date Time</th>
                 <th>Amount</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -125,29 +126,34 @@ $where = ($userdata['role'] === 'Admin')
     ? "1=1"
     : "user_token = '" . mysqli_real_escape_string($conn, $token) . "'";
 
-$query = "SELECT create_date, customer_mobile, order_id, amount, status FROM orders WHERE $where ORDER BY id DESC LIMIT 15";
+$query = "SELECT create_date, customer_mobile, order_id, amount, status, utr FROM orders WHERE $where ORDER BY id DESC LIMIT 15";
 $query_run = mysqli_query($conn, $query);
 
 if ($query_run && mysqli_num_rows($query_run) > 0) {
     while ($row = mysqli_fetch_assoc($query_run)) {
         $sts = $row['status'];
+        $oid = htmlspecialchars($row['order_id'], ENT_QUOTES, 'UTF-8');
         if ($sts === "SUCCESS") {
             $badge = '<span class="badge" style="background:#28a745;color:#fff;">SUCCESS</span>';
+            $action = '<span class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Paid</span>';
         } elseif ($sts === "PENDING") {
             $badge = '<span class="badge" style="background:#ffc107;color:#000;">PENDING</span>';
+            $action = '<button type="button" class="btn btn-sm btn-outline-success" onclick="confirmPayment(\'' . $oid . '\')"><i class="bi bi-check2-circle"></i> Confirm Paid</button>';
         } else {
             $badge = '<span class="badge" style="background:#dc3545;color:#fff;">' . htmlspecialchars($sts, ENT_QUOTES, 'UTF-8') . '</span>';
+            $action = '<span class="text-muted">-</span>';
         }
         echo "<tr>";
         echo "<td>" . htmlspecialchars($row['customer_mobile'], ENT_QUOTES, 'UTF-8') . "</td>";
-        echo "<td>" . htmlspecialchars($row['order_id'], ENT_QUOTES, 'UTF-8') . "</td>";
+        echo "<td>" . $oid . "</td>";
         echo "<td>" . htmlspecialchars($row['create_date'], ENT_QUOTES, 'UTF-8') . "</td>";
         echo "<td>₹" . htmlspecialchars(number_format((float)$row['amount'], 2), ENT_QUOTES, 'UTF-8') . "</td>";
         echo "<td>" . $badge . "</td>";
+        echo "<td>" . $action . "</td>";
         echo "</tr>";
     }
 } else {
-    echo "<tr><td colspan='5' class='text-center text-muted py-3'>No payment links generated yet.</td></tr>";
+    echo "<tr><td colspan='6' class='text-center text-muted py-3'>No payment links generated yet.</td></tr>";
 }
 ?>
             </tbody>
@@ -157,7 +163,55 @@ if ($query_run && mysqli_num_rows($query_run) > 0) {
     </div>
   </div>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+  function confirmPayment(orderId) {
+    Swal.fire({
+      title: 'Confirm Payment',
+      text: 'Mark order ' + orderId + ' as SUCCESS? (Enter 12-digit UTR if available):',
+      input: 'text',
+      inputPlaceholder: 'e.g. 123456789012 (Optional)',
+      showCancelButton: true,
+      confirmButtonText: 'Mark as Paid',
+      showLoaderOnConfirm: true,
+      preConfirm: (utr) => {
+        return fetch('/api/check-order-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+            user_token: <?php echo json_encode($userdata['user_token'] ?? ''); ?>,
+            action: 'confirm',
+            utr: (utr || '').trim()
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (!data || !data.paid) {
+            throw new Error(data.message || 'Failed to update order status');
+          }
+          return data;
+        })
+        .catch(error => {
+          Swal.showValidationMessage(error.message || 'Request failed');
+        });
+      },
+      allowOutsideClick: () => !Swal.isLoading()
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          title: 'Success!',
+          text: 'Payment marked as SUCCESS and merchant callback triggered.',
+          icon: 'success',
+          timer: 1500,
+          showConfirmButton: false
+        }).then(() => {
+          location.reload();
+        });
+      }
+    });
+  }
+
   fetch('<?php echo $murl; ?>/crons/cron.php')
     .then(response => console.log('Cron pinged.'))
     .catch(err => console.error(err));

@@ -115,7 +115,7 @@ $base64_image = base64_encode($image_content);
 }else{
 echo "error";
     exit;
-}
+$server_url = !empty($redirect_url) ? $redirect_url : ($murl . '/');
 ?>
 <body style="margin: 30px auto;">
     <table style="width: 100%">
@@ -182,79 +182,140 @@ echo "error";
       </tbody>
     </table>
   </body>
-<?php 
-$html = '
-<form id="formSubmit" action="'.$redirect_url.'" method="post" style="display:none;">
-    <input type="hidden" name="order_id" value="'.$order_id.'">
-    <input type="hidden" name="hash" value="'.$hash.'">
+                                <!-- Instant UTR Verification for Customer -->
+                                <div class="mt-3 text-center">
+                                  <button type="button" class="btn btn-sm btn-success" onclick="verifyUtrPrompt()"><i class="fas fa-check-circle"></i> Already Paid? Click here to Verify UTR</button>
+                                </div>
+<form id="formSubmit" action="<?php echo htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8'); ?>" method="post" style="display:none;">
+    <input type="hidden" name="order_id" value="<?php echo htmlspecialchars($order_id, ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="hash" value="<?php echo htmlspecialchars($hash, ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="status" value="SUCCESS">
+    <input type="hidden" id="formUtr" name="utr" value="">
 </form>
+
 <script>
-function upiCountdown(elm, minute, second, url) {
-    document.getElementById(elm).innerHTML = minute + ":" + second;
+var isSuccessProcessed = false;
+var serverUrl = <?php echo json_encode($server_url); ?>;
+
+function upiCountdown(elm, minute, second) {
+    var el = document.getElementById(elm);
+    if (!el) return;
+    el.innerHTML = minute + ":" + (second < 10 ? "0" + second : second);
     startTimer();
 
     function startTimer() {
-        var presentTime = document.getElementById(elm).innerHTML;
+        if (isSuccessProcessed) return;
+        var presentTime = el.innerHTML;
         var timeArray = presentTime.split(/[:]+/);
-        var m = timeArray[0];
-        var s = checkSecond((timeArray[1] - 1));
-        if(s == 59){m = m - 1}
-        if(m < 0){
+        var m = parseInt(timeArray[0], 10);
+        var s = parseInt(timeArray[1], 10) - 1;
+        if (s < 0) {
+            s = 59;
+            m = m - 1;
+        }
+        if (m < 0) {
             Swal.fire({
               title: "Oops",
               text: "Transaction Timeout!",
               icon: "error",
             });
-            window.location.href = "'.$server_url.'";
+            window.location.href = serverUrl;
+            return;
         }
-        document.getElementById(elm).innerHTML = m + ":" + s;
+        el.innerHTML = m + ":" + (s < 10 ? "0" + s : s);
         setTimeout(startTimer, 1000);
-    }
-
-    function checkSecond(sec) {
-        if (sec < 10 && sec >= 0) { sec = "0" + sec };
-        if (sec < 0) { sec = "59" };
-        return sec;
     }
 }
 
-upiCountdown("timeout", 5, 0, location.href);
+upiCountdown("timeout", 5, 0);
+
+function handleSuccess(utr) {
+    if (isSuccessProcessed) return;
+    isSuccessProcessed = true;
+    if (utr) {
+        document.getElementById("formUtr").value = utr;
+    }
+    Swal.fire({
+        title: "Payment Received!",
+        text: "Your Payment Received Successfully",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false
+    });
+    setTimeout(function(){ 
+        document.getElementById("formSubmit").submit();
+    }, 1800);
+}
+
 function check() {
+    if (isSuccessProcessed) return;
     $.ajax({
         type: "post",
         url: "/payment/payment_status.php",
-        data: "order_id='.$order_id.'",
+        data: { order_id: <?php echo json_encode($order_id); ?> },
         success: function(data) {
-            if (data == "success") {
-                // Display a success message using SweetAlert
+            var res = (data || "").toString().trim().toLowerCase();
+            if (res === "success" || res.indexOf("success") !== -1) {
+                handleSuccess();
+            } else if (res === "failure" || res === "failed") {
                 Swal.fire({
-                    title: "",
-                    text: "Your Payment Received Successfully",
-                    icon: "success",
-                });
-                setTimeout(function(){ 
-                    document.getElementById("formSubmit").submit();
-                }, 2000);
-            } else if (data == "FAILURE") {
-                Swal.fire({
-                    title: "",
+                    title: "Failed",
                     text: "Your Payment Was Failed",
                     icon: "error",
                 });
-                window.location.href = "'.$server_url.'";
+                window.location.href = serverUrl;
             }
         }
     });
 }
 
-setInterval(check, 4000);
+setInterval(check, 3000);
+check();
+
+function verifyUtrPrompt() {
+    Swal.fire({
+        title: 'Verify Payment',
+        text: 'Enter the 12-digit UPI Reference / UTR Number from your UPI payment receipt:',
+        input: 'text',
+        inputPlaceholder: 'e.g. 123456789012',
+        showCancelButton: true,
+        confirmButtonText: 'Verify Now',
+        showLoaderOnConfirm: true,
+        inputAttributes: {
+            maxlength: '22',
+            autocapitalize: 'off',
+            autocorrect: 'off'
+        },
+        preConfirm: (utr) => {
+            if (!utr || utr.trim().length < 4) {
+                Swal.showValidationMessage('Please enter a valid 12-digit UTR number');
+                return false;
+            }
+            return $.ajax({
+                type: "post",
+                url: "/payment/payment_status.php",
+                data: {
+                    order_id: <?php echo json_encode($order_id); ?>,
+                    utr: utr.trim()
+                }
+            }).then(response => {
+                var res = (response || "").toString().trim().toLowerCase();
+                if (res === "success" || res.indexOf("success") !== -1) {
+                    return utr.trim();
+                } else {
+                    throw new Error('Verification failed. Please check UTR and try again.');
+                }
+            }).catch(error => {
+                Swal.showValidationMessage(error.message || 'Verification failed');
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
+    }).then((result) => {
+        if (result.isConfirmed && result.value) {
+            handleSuccess(result.value);
+        }
+    });
+}
 </script>
-';
-
-echo $html;
-?>
-
-   
-
 </body>
 </html>

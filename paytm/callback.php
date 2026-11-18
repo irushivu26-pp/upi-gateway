@@ -115,6 +115,10 @@ if (!empty($matched_order_id) && $is_success) {
 
     $conn->query("UPDATE orders SET status = 'SUCCESS', utr = '$up_utr', gateway_txn = '$up_txn' WHERE order_id = '$up_clean_oid'");
 
+    $conn->query("INSERT INTO reports (transactionId, status, order_id, vpa, user_name, paymentApp, amount, user_token, transactionNote, merchantTransactionId, user_id, UTR)
+                  VALUES ('$up_txn', 'TXN_SUCCESS', '$up_clean_oid', 'paytm@upi', 'Customer', 'Paytm', '$order_amount', '', 'Paytm Callback', '$up_txn', 1, '$up_utr')
+                  ON DUPLICATE KEY UPDATE status='TXN_SUCCESS', UTR='$up_utr'");
+
     // Update MID in paytm_tokens if Paytm sent a real MID
     if (!empty($mid) && $mid !== 'PAYTM_MID_101') {
         $clean_mid = mysqli_real_escape_string($conn, $mid);

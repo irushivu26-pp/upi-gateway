@@ -45,9 +45,9 @@ $incoming_utr = $data['utr'] ?? ($_REQUEST['utr'] ?? '');
 
 if ($action === 'mark_paid' || $action === 'confirm' || (!empty($incoming_utr) && strlen($incoming_utr) >= 4)) {
     $set_utr = !empty($incoming_utr) ? $incoming_utr : ('CONFIRM_' . time());
-    $update_sql = "UPDATE orders SET status = 'SUCCESS', utr = ? WHERE (user_token = ? OR user_token = 'dcb789d237d4f44cb5e4532abaf92866' OR user_token = 'admin_token_demo_1234567890') AND order_id = ?";
+    $update_sql = "UPDATE orders SET status = 'SUCCESS', utr = ? WHERE order_id = ?";
     $up_stmt = $conn->prepare($update_sql);
-    $up_stmt->bind_param("sss", $set_utr, $user_token, $order_id);
+    $up_stmt->bind_param("ss", $set_utr, $order_id);
     $up_stmt->execute();
     $up_stmt->close();
 
@@ -57,9 +57,9 @@ if ($action === 'mark_paid' || $action === 'confirm' || (!empty($incoming_utr) &
     }
 }
 
-$sql = "SELECT status, amount, utr, create_date, remark1, gateway_txn FROM orders WHERE (user_token = ? OR user_token = 'dcb789d237d4f44cb5e4532abaf92866' OR user_token = 'admin_token_demo_1234567890') AND order_id = ?";
+$sql = "SELECT status, amount, utr, create_date, remark1, gateway_txn FROM orders WHERE order_id = ? LIMIT 1";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $user_token, $order_id);
+$stmt->bind_param("s", $order_id);
 $stmt->execute();
 $stmt->bind_result($status, $amount, $utr, $create_date, $remark1, $gateway_txn);
 

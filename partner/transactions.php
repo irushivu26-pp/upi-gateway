@@ -45,14 +45,17 @@ if($userdata['role'] == 'User'){
             if($row['status']=="SUCCESS"){
                  $sts = 'Success';
                 $cls = "btn btn-success";
+                echo "<td><button class='$cls'>" . $sts . "</button></td>";
             }elseif($row['status']=="PENDING"){
-                $sts = 'Pending';
-                $cls = "btn btn-primary";
+                $sts = 'Pending (Confirm)';
+                $cls = "btn btn-warning";
+                $oid = htmlspecialchars($row['order_id'], ENT_QUOTES, 'UTF-8');
+                echo "<td><button class='$cls' onclick=\"confirmPayment('$oid')\">" . $sts . "</button></td>";
             }elseif($row['status']=="FAILED"){
                 $sts = 'FAILED';
                 $cls = "btn btn-secondary";
+                echo "<td><button class='$cls'>" . $sts . "</button></td>";
             }
-            echo "<td><button class='$cls'>" . $sts . "</button></td>";
             echo "<td><a href='/phnpe/invoice.php?order_id=" . htmlspecialchars($row['byteTransactionId'], ENT_QUOTES, 'UTF-8') . "' target='_blank' class='btn btn-info'>invoice</a></td>";
 
             echo "</tr>";
@@ -118,6 +121,55 @@ if($userdata['role'] == 'User'){
     <script src="js/bootstrap.min.js"></script>
     <script src="js/main.js"></script>
     <!-- Page specific javascripts-->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+      function confirmPayment(orderId) {
+        Swal.fire({
+          title: 'Confirm Payment',
+          text: 'Mark order ' + orderId + ' as SUCCESS? (Enter 12-digit UTR if available):',
+          input: 'text',
+          inputPlaceholder: 'e.g. 123456789012 (Optional)',
+          showCancelButton: true,
+          confirmButtonText: 'Mark as Paid',
+          showLoaderOnConfirm: true,
+          preConfirm: (utr) => {
+            return fetch('/api/check-order-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                order_id: orderId,
+                user_token: <?php echo json_encode($userdata['user_token'] ?? ''); ?>,
+                action: 'confirm',
+                utr: (utr || '').trim()
+              })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (!data || !data.paid) {
+                throw new Error(data.message || 'Failed to update order status');
+              }
+              return data;
+            })
+            .catch(error => {
+              Swal.showValidationMessage(error.message || 'Request failed');
+            });
+          },
+          allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+          if (result.isConfirmed) {
+            Swal.fire({
+              title: 'Success!',
+              text: 'Payment marked as SUCCESS and merchant callback triggered.',
+              icon: 'success',
+              timer: 1500,
+              showConfirmButton: false
+            }).then(() => {
+              location.reload();
+            });
+          }
+        });
+      }
+    </script>
     <link rel="stylesheet" href="https://cdn.datatables.net/v/bs5/dt-1.13.4/datatables.min.css">
     <!-- Data table plugin-->
     <script type="text/javascript" src="js/plugins/jquery.dataTables.min.js"></script>
