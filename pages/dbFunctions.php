@@ -559,7 +559,21 @@ function cpassword($password) {
  * whenever an order is completed, ensuring instant fulfillment.
  */
 function notify_merchant_callback($order_id, $status = 'SUCCESS', $utr = '') {
-    $con = connect_database();
+    if (!defined('DB_HOST')) {
+        @require_once __DIR__ . '/../config.php';
+    }
+    if (!function_exists('connect_database')) {
+        @require_once __DIR__ . '/dbInfo.php';
+    }
+    if (function_exists('connect_database')) {
+        $con = connect_database();
+    } else {
+        $con = new mysqli(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    }
+    if (!$con || $con->connect_error) {
+        return false;
+    }
+    $con->set_charset('utf8mb4');
     $clean_oid = mysqli_real_escape_string($con, $order_id);
     $sql = "SELECT o.redirect_url, o.gateway_txn, o.amount, o.remark1, o.user_token, u.callback_url 
             FROM orders o 
@@ -567,6 +581,7 @@ function notify_merchant_callback($order_id, $status = 'SUCCESS', $utr = '') {
             WHERE o.order_id = '$clean_oid' LIMIT 1";
     $res = $con->query($sql);
     if ($res && $row = $res->fetch_assoc()) {
+        $con->close();
         $target_url = !empty($row['redirect_url']) ? $row['redirect_url'] : (!empty($row['callback_url']) ? $row['callback_url'] : 'https://payprints.in/api/payment/tajapi/callback');
         $gateway_txn = $row['gateway_txn'] ?? '';
         $amount = $row['amount'] ?? '';
