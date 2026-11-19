@@ -257,8 +257,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $payment_link = $murl . "/payment/pay.php?data=" . $order_id2 . "&" . $rool . "&" . $ne;
         send_order_success($order_id, $payment_link, $upiLink);
-    } else {
-        send_api_response(false, "Merchant Not Linked. Please link PhonePe, Paytm, BharatPe, or HDFC in UPI Settings.");
+    }
+
+    // 5. DEMO / SIMULATION MODE (Fallback when no merchant is linked)
+    else {
+        $link_token = generateUniqueToken();
+        $cxrtoday = date("Y-m-d H:i:s");
+        $sql_insert_link = "INSERT INTO payment_links (link_token, order_id, created_at) VALUES ('$link_token', '$order_id', '$cxrtoday')";
+        setXbyY($sql_insert_link);
+
+        $payment_link = "$murl/payment/demo_pay.php?order_id=" . urlencode($order_id);
+        $gateway_txn = 'DEMO' . uniqid();
+
+        $sql = "INSERT INTO orders (gateway_txn, amount, order_id, status, user_token, utr, plan_id, customer_mobile, redirect_url, Method, byteTransactionId, create_date, remark1, remark2, user_id)
+                VALUES ('$gateway_txn', '$amount', '$order_id', 'PENDING', '$user_token', '', '', '$customer_mobile', '$redirect_url', 'DEMO', '$byteorderid', '$cxrtoday', '$remark1', '$remark2', '$bydb_unq_user_id')";
+        setXbyY($sql);
+
+        $demo_vpa = "payprints@upi";
+        $native_upi = "upi://pay?pa=$demo_vpa&am=$amount&pn=" . urlencode($merchant_name) . "&tn=" . urlencode($remark1 ?: $order_id) . "&tr=$byteorderid";
+        send_order_success($order_id, $payment_link, $native_upi);
     }
 }
 ?>
