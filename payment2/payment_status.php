@@ -133,6 +133,30 @@ if ($rep_res && $rep_res->num_rows > 0) {
     exit;
 }
 
+// Check recent reports by exact amount in the last 5 minutes (webhook auto-match)
+if ($current_status === 'PENDING' && !empty($bytehackamount)) {
+    $clean_amt = mysqli_real_escape_string($conn, $bytehackamount);
+    $amt_flt = (float)$bytehackamount;
+    $rec_match = $conn->query("SELECT UTR, transactionId FROM reports 
+                               WHERE (amount='$clean_amt' OR CAST(amount AS DECIMAL(10,2))=$amt_flt) 
+                                 AND (status='TXN_SUCCESS' OR status='SUCCESS') 
+                                 AND date >= (NOW() - INTERVAL 5 MINUTE) 
+                               ORDER BY id DESC LIMIT 1");
+    if ($rec_match && $rec_match->num_rows > 0) {
+        $m_row = $rec_match->fetch_assoc();
+        $utr_val = !empty($m_row['UTR']) ? $m_row['UTR'] : $m_row['transactionId'];
+        $clean_utr = mysqli_real_escape_string($conn, $utr_val);
+        $conn->query("UPDATE orders SET status='SUCCESS', utr='$clean_utr' WHERE order_id='$order_id'");
+        if (function_exists('notify_merchant_callback')) {
+            notify_merchant_callback($order_id, 'SUCCESS', $clean_utr);
+        }
+        ob_clean();
+        echo 'success';
+        $conn->close();
+        exit;
+    }
+}
+
 if ($current_status === 'FAILED' || $current_status === 'FAILURE') {
     ob_clean();
     echo 'FAILURE';
