@@ -1,3 +1,8 @@
+# Block direct access to sensitive files
+<FilesMatch "^(\.env|\.git|\.htaccess|.*\.sql|.*\.log|composer\.(json|lock)|Dockerfile|.*\.yml)$">
+    Require all denied
+</FilesMatch>
+
 RewriteEngine On
 
 # Allow index.html and existing files/directories

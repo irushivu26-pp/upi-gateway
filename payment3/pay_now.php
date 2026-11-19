@@ -181,8 +181,28 @@ $base64_image = $image_content ? base64_encode($image_content) : '';
                                       });
                                     </script>
                                   <?php endif; ?>
-                                  <div class="mt-2">
-                                    <a href="<?php echo htmlspecialchars($orders, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-primary d-md-none"><i class="fas fa-external-link-alt"></i> Open in UPI App</a>
+                                  <div class="mt-2 d-md-none">
+                                    <div class="d-grid gap-2 mb-2">
+                                      <a href="<?php echo htmlspecialchars($orders, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary fw-bold shadow-sm">
+                                        <i class="fas fa-bolt"></i> Pay with Any UPI App
+                                      </a>
+                                    </div>
+                                    <div class="d-flex justify-content-center gap-2">
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'gpay://upi/pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/gpay.png" height="16" alt="GPay"> GPay
+                                      </a>
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'phonepe://pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/phonepe.png" height="16" alt="PhonePe"> PhonePe
+                                      </a>
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'paytmmp://pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/paytm.png" height="16" alt="Paytm"> Paytm
+                                      </a>
+                                    </div>
+                                  </div>
+                                  <div class="mt-2 text-center">
+                                    <button type="button" class="btn btn-sm btn-light border text-muted py-1 px-2" onclick="copyUpiId('<?php echo htmlspecialchars($upi_id, ENT_QUOTES, 'UTF-8'); ?>')">
+                                      <i class="far fa-copy me-1"></i> <span id="upiCopyText"><?php echo htmlspecialchars($upi_id, ENT_QUOTES, 'UTF-8'); ?></span>
+                                    </button>
                                   </div>
                                 </div>
 
@@ -340,6 +360,19 @@ function verifyUtrPrompt() {
             handleSuccess(result.value);
         }
     });
+}
+
+function copyUpiId(id) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(function() {
+            var el = document.getElementById('upiCopyText');
+            if (el) {
+                var old = el.innerText;
+                el.innerText = 'Copied!';
+                setTimeout(function(){ el.innerText = old; }, 1500);
+            }
+        });
+    }
 }
 </script>
 </body>

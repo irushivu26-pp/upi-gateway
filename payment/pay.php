@@ -112,9 +112,10 @@ $image_content = file_get_contents($qr_code_url);
 // Convert the image content to base64
 $base64_image = base64_encode($image_content);
 
-}else{
-echo "error";
+} else {
+    echo "Invalid payment method";
     exit;
+}
 $server_url = !empty($redirect_url) ? $redirect_url : ($murl . '/');
 ?>
 <body style="margin: 30px auto;">
@@ -153,13 +154,39 @@ $server_url = !empty($redirect_url) ? $redirect_url : ($murl . '/');
 </div>
 
 
-<div class="text-center font-weight-bold mt-2">
-<a href="<?php echo $orders; ?>" class="btn btn-success d-md-none">Pay Via UPI</a>
-<div class="text-center font-weight-bold mt-1">
-    This QR code will expire in <b><span id="timeout"></span></b>
-</div>
+                                  <div class="mt-2 d-md-none">
+                                    <div class="d-grid gap-2 mb-2">
+                                      <a href="<?php echo htmlspecialchars($orders, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary fw-bold shadow-sm">
+                                        <i class="fas fa-bolt"></i> Pay with Any UPI App
+                                      </a>
+                                    </div>
+                                    <div class="d-flex justify-content-center gap-2">
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'gpay://upi/pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/gpay.png" height="16" alt="GPay"> GPay
+                                      </a>
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'phonepe://pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/phonepe.png" height="16" alt="PhonePe"> PhonePe
+                                      </a>
+                                      <a href="<?php echo htmlspecialchars(str_replace('upi://pay', 'paytmmp://pay', $orders), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-dark px-2">
+                                        <img src="/assets/img/paytm.png" height="16" alt="Paytm"> Paytm
+                                      </a>
+                                    </div>
+                                  </div>
+                                  <div class="mt-2 text-center">
+                                    <button type="button" class="btn btn-sm btn-light border text-muted py-1 px-2" onclick="copyUpiId('<?php echo htmlspecialchars($upi_id, ENT_QUOTES, 'UTF-8'); ?>')">
+                                      <i class="far fa-copy me-1"></i> <span id="upiCopyText"><?php echo htmlspecialchars($upi_id, ENT_QUOTES, 'UTF-8'); ?></span>
+                                    </button>
+                                  </div>
+                                </div>
 
-</div> 
+                                <div class="text-center font-weight-bold mt-2">
+                                  This QR code will expire in <b><span id="timeout"></span></b>
+                                </div>
+
+                                <!-- Instant UTR Verification for Customer -->
+                                <div class="mt-3">
+                                  <button type="button" class="btn btn-sm btn-success" onclick="verifyUtrPrompt()"><i class="fas fa-check-circle"></i> Already Paid? Click here to Verify UTR</button>
+                                </div> 
 </div>
 <div class="col-md-12 text-center mt-0">
 </div>
@@ -315,6 +342,19 @@ function verifyUtrPrompt() {
             handleSuccess(result.value);
         }
     });
+}
+
+function copyUpiId(id) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(function() {
+            var el = document.getElementById('upiCopyText');
+            if (el) {
+                var old = el.innerText;
+                el.innerText = 'Copied!';
+                setTimeout(function(){ el.innerText = old; }, 1500);
+            }
+        });
+    }
 }
 </script>
 </body>

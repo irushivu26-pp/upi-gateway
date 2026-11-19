@@ -45,9 +45,14 @@ $murl = $protocol . '://' . $serverName . $base_path;
 $cxrurl = $serverName;
 $cxrteamurl = $serverName;
 
-// Global mysqli connection instance
+// Global mysqli connection instance with safe retry for cold-starts
+mysqli_report(MYSQLI_REPORT_OFF);
 if (!isset($conn) || !$conn) {
-    $conn = @mysqli_connect(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    for ($i = 0; $i < 4; $i++) {
+        $conn = @mysqli_connect(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
+        if ($conn) break;
+        usleep(300000); // 300ms delay between retries
+    }
     if ($conn) {
         mysqli_set_charset($conn, 'utf8mb4');
         mysqli_query($conn, "SET time_zone = '+05:30'");

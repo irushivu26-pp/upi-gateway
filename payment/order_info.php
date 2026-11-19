@@ -53,16 +53,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Get input parameters from the data
-     $gateway_txn = $data['hash'];
-    $order_id = $data['order_id'];
+    $gateway_txn = trim($data['hash'] ?? '');
+    $order_id = trim($data['order_id'] ?? '');
 
     // Prepare the SQL query to fetch order data
-   $sql = "SELECT status, amount, utr, create_date, remark1 FROM orders WHERE gateway_txn = ? AND order_id = ?";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $gateway_txn, $order_id);
-$stmt->execute();
-$stmt->bind_result($status, $amount, $utr, $create_date, $remark1);
+    if (!empty($gateway_txn) && !empty($order_id)) {
+        $sql = "SELECT status, amount, utr, create_date, remark1 FROM orders WHERE order_id = ? AND (gateway_txn = ? OR gateway_txn = '') LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ss", $order_id, $gateway_txn);
+    } else {
+        $target_id = !empty($order_id) ? $order_id : $gateway_txn;
+        $sql = "SELECT status, amount, utr, create_date, remark1 FROM orders WHERE order_id = ? OR byteTransactionId = ? OR gateway_txn = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("sss", $target_id, $target_id, $target_id);
+    }
+    $stmt->execute();
+    $stmt->bind_result($status, $amount, $utr, $create_date, $remark1);
 
 
     $response = array();
