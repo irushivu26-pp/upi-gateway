@@ -33,37 +33,36 @@ $log_entry = date('Y-m-d H:i:s') . " | Raw: " . substr($raw_input, 0, 500) . " |
 
 // 2. Extract Order Identifier across all possible Paytm parameter variations
 $order_id = trim(
-    $data['ORDERID'] ?? (
-    $data['orderId'] ?? (
-    $data['order_id'] ?? (
-    $data['ORDER_ID'] ?? (
-    $data['MERC_UNQ_REF'] ?? (
-    $data['merUnqRef'] ?? (
-    $data['mercUnqRef'] ?? (
-    $data['merchantOrderId'] ?? (
-    $data['merchantTransactionId'] ?? (
-    $data['client_txn_id'] ?? (
-    $data['tr'] ?? (
-    $data['txnRef'] ?? (
-    $data['txId'] ?? (
+    $data['ORDERID'] ??
+    $data['orderId'] ??
+    $data['order_id'] ??
+    $data['ORDER_ID'] ??
+    $data['MERC_UNQ_REF'] ??
+    $data['merUnqRef'] ??
+    $data['mercUnqRef'] ??
+    $data['merchantOrderId'] ??
+    $data['merchantTransactionId'] ??
+    $data['client_txn_id'] ??
+    $data['tr'] ??
+    $data['txnRef'] ??
+    $data['txId'] ??
     $data['posId'] ?? ''
-)))))))))))))
 );
 
 // 3. Extract Payment Status
 $status_raw = strtoupper(trim(
-    $data['STATUS'] ?? (
-    $data['status'] ?? (
-    $data['resultStatus'] ?? (
-    $data['txnStatus'] ?? (
+    $data['STATUS'] ??
+    $data['status'] ??
+    $data['resultStatus'] ??
+    $data['txnStatus'] ??
     $data['orderStatus'] ?? ''
-))))));
+));
 
 $resp_code = trim(
-    $data['RESPCODE'] ?? (
-    $data['respCode'] ?? (
+    $data['RESPCODE'] ??
+    $data['respCode'] ??
     $data['resultCode'] ?? ''
-)));
+);
 
 // Paytm marks success as: TXN_SUCCESS, SUCCESS, S (in JSON body), or respCode 01
 $is_success = (
@@ -78,32 +77,30 @@ $is_success = (
 
 // 4. Extract UTR / Transaction Reference IDs
 $utr = trim(
-    $data['BANKTXNID'] ?? (
-    $data['bankTxnId'] ?? (
-    $data['bankTransactionId'] ?? (
-    $data['utr'] ?? (
-    $data['bank_txn_id'] ?? (
-    $data['bankTxnNo'] ?? (
-    $data['rrn'] ?? (
+    $data['BANKTXNID'] ??
+    $data['bankTxnId'] ??
+    $data['bankTransactionId'] ??
+    $data['utr'] ??
+    $data['bank_txn_id'] ??
+    $data['bankTxnNo'] ??
+    $data['rrn'] ??
     $data['upiRefNo'] ?? ''
-))))))))
 );
 
 $paytm_txn_id = trim(
-    $data['TXNID'] ?? (
-    $data['txnId'] ?? (
-    $data['transactionId'] ?? (
-    $data['paytmOrderId'] ?? (
-    $data['gateway_txn'] ?? (
+    $data['TXNID'] ??
+    $data['txnId'] ??
+    $data['transactionId'] ??
+    $data['paytmOrderId'] ??
+    $data['gateway_txn'] ??
     $data['paytmTxnId'] ?? ''
-))))))
 );
 
 $amount = trim(
-    $data['TXNAMOUNT'] ?? (
-    $data['txnAmount'] ?? (
+    $data['TXNAMOUNT'] ??
+    $data['txnAmount'] ??
     $data['amount'] ?? ''
-)));
+);
 
 $mid = trim($data['MID'] ?? ($data['mid'] ?? ''));
 
