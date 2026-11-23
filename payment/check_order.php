@@ -19,10 +19,10 @@ if (!is_array($data)) {
 $user_token = $data['user_token'] ?? ($data['key'] ?? ($_REQUEST['user_token'] ?? ($_REQUEST['key'] ?? '')));
 $order_id = $data['order_id'] ?? ($data['client_txn_id'] ?? ($_REQUEST['order_id'] ?? ($_REQUEST['client_txn_id'] ?? '')));
 
-if (empty($user_token) || empty($order_id)) {
+if (empty($order_id)) {
     echo json_encode(array(
         'status' => false,
-        'message' => 'Missing required parameter: user_token/key or order_id/client_txn_id'
+        'message' => 'Missing required parameter: order_id or client_txn_id'
     ));
     exit;
 }

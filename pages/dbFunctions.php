@@ -591,10 +591,14 @@ function notify_merchant_callback($order_id, $status = 'SUCCESS', $utr = '') {
             $urls_to_notify[] = $raw_target;
         }
 
-        // Standard PayPrints Production Callback URL (always notified for all kiosks)
+        // Standard PayPrints Production Callback URLs (always notified for all kiosks)
         $standard_payprints_cb = 'https://payprints.in/api/payment/tajapi/callback';
+        $standard_payprints_cb2 = 'https://payprints.in/api/payment/callback';
         if (!in_array($standard_payprints_cb, $urls_to_notify)) {
             $urls_to_notify[] = $standard_payprints_cb;
+        }
+        if (!in_array($standard_payprints_cb2, $urls_to_notify)) {
+            $urls_to_notify[] = $standard_payprints_cb2;
         }
 
         $gateway_txn = $row['gateway_txn'] ?? '';
